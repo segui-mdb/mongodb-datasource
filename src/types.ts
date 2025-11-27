@@ -6,7 +6,9 @@ export interface MongoDBQuery extends DataQuery {
   collection?: string;
   queryType?: string;
   queryLanguage?: string;
-
+  // Vars so we can do backend side interpolation
+  variables?: Record<string, any>;
+  
   isStreaming?: boolean;
 
   // Aggregate options
@@ -68,6 +70,8 @@ export interface MongoDataSourceOptions extends DataSourceJsonData {
   caCertPath?: string;
   clientCertPath?: string;
   clientKeyPath?: string;
+  prependStages?: string;
+  appendStages?: string;
 }
 
 export interface MongoDataSourceSecureJsonData {

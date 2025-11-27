@@ -142,6 +142,46 @@ export function ConfigEditor(props: Props) {
           width={35}
         ></Input>
       </InlineField>
+      <InlineField
+        label="Prepend stages"
+        tooltip="(Optional) Stages that will be prepended to all queries to this collection. For example {computers: [{{$match: $HostId}}]} will prepend that stage to all queries sent to the computers collection."
+      >
+        <Input
+          required
+          id="config-editor-prepend-stages"
+          value={jsonData.prependStages}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => {
+            onOptionsChange({
+              ...options,
+              jsonData: {
+                ...jsonData,
+                prependStages: event.target.value,
+              },
+            });
+          }}
+          width={35}
+        ></Input>
+      </InlineField>
+      <InlineField
+        label="Prepend stages"
+        tooltip="(Optional) Stages that will be appended to all queries to this collection. For example {computers: [{{$limit: 10}}]} will append that stage to all queries sent to the computers collection."
+      >
+        <Input
+          required
+          id="config-editor-append-stages"
+          value={jsonData.appendStages}
+          onChange={(event: ChangeEvent<HTMLInputElement>) => {
+            onOptionsChange({
+              ...options,
+              jsonData: {
+                ...jsonData,
+                appendStages: event.target.value,
+              },
+            });
+          }}
+          width={35}
+        ></Input>
+      </InlineField>
       <Divider />
       <FieldSet label="Authentication">
         <Field label="Authentication method">
