@@ -66,6 +66,19 @@ func NewDatasource(ctx context.Context, source backend.DataSourceInstanceSetting
 		return nil, err
 	}
 
+	// Verify prepend and append stages parse to JSON correctly
+	err = validateStageCollection(config.PrependStages)
+	if err != nil {
+		backend.Logger.Error(fmt.Sprintf("Failed to parse prepend stage: %s", err.Error()))
+		return nil, err
+	}
+	backend.Logger.Debug(fmt.Sprintf("Validated prepend stages: %s", config.PrependStages))
+	err = validateStageCollection(config.AppendStages)
+	if err != nil {
+		backend.Logger.Error(fmt.Sprintf("Failed to parse append stage: %s", err.Error()))
+		return nil, err
+	}
+	backend.Logger.Debug(fmt.Sprintf("Validated append stages: %s", config.AppendStages))
 	datasource := &Datasource{
 		client:   client,
 		database: config.Database,
@@ -78,6 +91,27 @@ func NewDatasource(ctx context.Context, source backend.DataSourceInstanceSetting
 	datasource.resourceHandler = httpadapter.New(mux)
 
 	return datasource, nil
+}
+
+func validateStageCollection(stages string) error {
+	if strings.TrimSpace(stages) == "" {
+		return nil
+	}
+	var collPipelines map[string][]bson.D
+	err := bson.UnmarshalExtJSON([]byte(stages), false, &collPipelines)
+	if err != nil {
+		backend.Logger.Error(fmt.Sprintf("Failed to parse stage %s: %s", stages, err.Error()))
+		return err
+	}
+
+	for k, v := range collPipelines {
+		if k == "" {
+			backend.Logger.Error(fmt.Sprintf("Stage should be for a specific collection but was empty: %s: %+v of type %T", k, v, v))
+			return err
+
+		}
+	}
+	return nil
 }
 
 // Dispose here tells plugin SDK that plugin wants to clean up resources when a new instance
@@ -127,11 +161,17 @@ func tlsSetup(config *models.PluginSettings) (*tls.Config, error) {
 func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
 	// create response struct
 	response := backend.NewQueryDataResponse()
-	// loop over queries and execute them individually.
 
+	// Extract the map of prepend/append stages from the plugin
+	prependStages := ""
+	appendStages := ""
+
+	if req.PluginContext.DataSourceInstanceSettings != nil {
+		config, _ := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
+		prependStages, appendStages = config.PrependStages, config.AppendStages
+	}
 	for _, q := range req.Queries {
-
-		res := d.query(ctx, req.PluginContext, q)
+		res := d.query(ctx, req.PluginContext, q, prependStages, appendStages)
 
 		// save the response in a hashmap
 		// based on with RefID as identifier
@@ -166,7 +206,7 @@ func (d *Datasource) listCollections(rw http.ResponseWriter, req *http.Request) 
 	rw.WriteHeader(http.StatusOK)
 }
 
-func (d *Datasource) query(ctx context.Context, _ backend.PluginContext, query backend.DataQuery) backend.DataResponse {
+func (d *Datasource) query(ctx context.Context, _ backend.PluginContext, query backend.DataQuery, prependTempl string, appendTempl string) backend.DataResponse {
 	backend.Logger.Debug("Executing query", "refId", query.RefID, "json", query.JSON)
 
 	var response backend.DataResponse
@@ -182,9 +222,50 @@ func (d *Datasource) query(ctx context.Context, _ backend.PluginContext, query b
 		return backend.ErrDataResponse(backend.StatusBadRequest, "Collection field is required")
 	}
 
-	var pipeline []bson.D
+	backend.Logger.Debug("Query model", "collection", qm.Collection, "queryType", qm.QueryType, "queryText", qm.QueryText, "Variables", qm.Variables)
+	backend.Logger.Debug("Interpolating prepend and append datasource stages", "prependTempl", prependTempl, "appendTempl", appendTempl)
+	for k, val := range qm.Variables {
+		varTempl := fmt.Sprintf("$%s", k)
+		switch v := val.(type) {
+		case string:
+			prependTempl = strings.ReplaceAll(prependTempl, varTempl, fmt.Sprintf("%s", v))
+			appendTempl = strings.ReplaceAll(appendTempl, varTempl, fmt.Sprintf("%s", v))
+		case float64:
+			prependTempl = strings.ReplaceAll(prependTempl, varTempl, fmt.Sprintf("%f", v))
+			appendTempl = strings.ReplaceAll(appendTempl, varTempl, fmt.Sprintf("%f", v))
+		case int64:
+			prependTempl = strings.ReplaceAll(prependTempl, varTempl, fmt.Sprintf("%d", v))
+			appendTempl = strings.ReplaceAll(appendTempl, varTempl, fmt.Sprintf("%d", v))
+		}
+	}
+	var prependStages, appendStages map[string][]bson.D
+	if strings.TrimSpace(prependTempl) != "" {
+		err = bson.UnmarshalExtJSON([]byte(prependTempl), false, &prependStages)
+		if err != nil {
+			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("Failed to parse prepend stages %s : %s", prependTempl, err.Error()))
+		}
+	}
+	if strings.TrimSpace(appendTempl) != "" {
 
+		err = bson.UnmarshalExtJSON([]byte(appendTempl), false, &appendStages)
+		if err != nil {
+			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("Failed to parse append stages %s: %s", appendTempl, err.Error()))
+		}
+	}
+
+	var pipeline []bson.D
 	err = bson.UnmarshalExtJSON([]byte(qm.QueryText), false, &pipeline)
+	backend.Logger.Debug("Prepending stages:", "stages", prependStages)
+	if stages, ok := prependStages[qm.Collection]; ok {
+		pipeline = append(stages, pipeline...)
+		backend.Logger.Debug(fmt.Sprintf("Prepended %d stages", len(prependStages)))
+	}
+	backend.Logger.Debug("Appending stages", "stages", appendStages)
+	if stages, ok := appendStages[qm.Collection]; ok {
+		pipeline = append(pipeline, stages...)
+		backend.Logger.Debug(fmt.Sprintf("Appended %d stages", len(appendStages)))
+	}
+
 	if err != nil {
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("Failed to unmarshal JsonExt: %v", err.Error()))
 	}

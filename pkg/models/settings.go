@@ -19,6 +19,8 @@ type PluginSettings struct {
 	ClientCertPath         string                `json:"clientCertPath"` // public client certificate
 	ClientKeyPath          string                `json:"clientKeyPath"`  // private client key
 	Secrets                *SecretPluginSettings `json:"-"`
+	PrependStages          string                `json:"prependStages"`
+	AppendStages           string                `json:"appendStages"`
 }
 
 type SecretPluginSettings struct {

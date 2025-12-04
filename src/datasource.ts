@@ -13,6 +13,35 @@ import { MongoDBQuery, MongoDataSourceOptions, DEFAULT_QUERY, QueryLanguage } fr
 import { merge, Observable, of } from 'rxjs';
 import { MongoDBVariableSupport } from 'variables';
 
+
+function getValuesForVariable(name: string): string {
+  const values: string[] = [];
+
+  // Collects the values in an array.
+  getTemplateSrv().replace(`$${name}`, {}, (value: string | string[]) => {
+    if (Array.isArray(value)) {
+      values.push(...value);
+    } else {
+      values.push(value);
+    }
+
+    // We don't really care about the string here.
+    return '';
+  });
+
+  return values.join(", ");
+}
+
+function getAllVariables(): Record<string, string[]> {
+  const entries = getTemplateSrv()
+    .getVariables()
+    .map((v) => [v.name, getValuesForVariable(v.name)]);
+
+  return Object.fromEntries(entries);
+}
+
+
+
 export class MongoDBDataSource extends DataSourceWithBackend<MongoDBQuery, MongoDataSourceOptions> {
   constructor(
     instanceSettings: DataSourceInstanceSettings<MongoDataSourceOptions>,
@@ -83,11 +112,14 @@ export class MongoDBDataSource extends DataSourceWithBackend<MongoDBQuery, Mongo
 
     const text = this.templateSrv.replace(queryText, variables);
     const collection = query.collection ? this.templateSrv.replace(query.collection, variables) : query.collection;
-
+    const allVars = getAllVariables();
+    
     return {
       ...query,
       queryText: text,
+      variables: allVars,
       collection,
+      
     };
   }
 
