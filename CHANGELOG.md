@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 - 2025-12-04
+
+### Added
+
+- Added ability to define prepended and appended stages at datasource level
+
 ## 0.4.1 - 2025-10-25
 
 ### Added
