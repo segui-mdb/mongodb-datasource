@@ -163,7 +163,7 @@ export function ConfigEditor(props: Props) {
         ></Input>
       </InlineField>
       <InlineField
-        label="Prepend stages"
+        label="Append stages"
         tooltip="(Optional) Stages that will be appended to all queries to this collection. For example {computers: [{{$limit: 10}}]} will append that stage to all queries sent to the computers collection."
       >
         <Input
