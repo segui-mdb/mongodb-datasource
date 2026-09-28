@@ -34,7 +34,7 @@
     "@types/testing-library__jest-dom": "5.14.8",
     "@types/validator": "^13.15.0",
     "bson": "^6.10.4",
-    "copy-webpack-plugin": "^11.0.0",
+    "copy-webpack-plugin": "^14.0.0",
     "css-loader": "^6.7.3",
     "eslint-plugin-deprecation": "^2.0.0",
     "eslint-webpack-plugin": "^4.0.1",
@@ -78,5 +78,10 @@
     "tslib": "2.5.3",
     "validator": "^13.15.0"
   },
-  "packageManager": "npm@9.6.7"
+  "packageManager": "npm@9.6.7",
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^9.0.9"
+    }
+  }
 }
