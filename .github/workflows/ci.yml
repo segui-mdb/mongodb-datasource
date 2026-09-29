@@ -146,13 +146,14 @@ jobs:
         id: create-fake-metadata
         run: |
           tmpfile=$(mktemp -d)
-          sed 's/>=10.4.0/\^11.x/g' src/plugin.json > $tmpfile/plugin.json
+          mkdir -p "$tmpfile/src"
+          sed 's/>=10.4.0/\^11.x/g' src/plugin.json > $tmpfile/src/plugin.json
           echo "fake_plugin_dir=$tmpfile" >> $GITHUB_OUTPUT
       - name: Resolve Grafana E2E versions
         id: resolve-versions
         uses: grafana/plugin-actions/e2e-version@main
         with:
-          skip-grafana-dev-image: true
+          skip-grafana-nightly-image: true
           limit: 1
           plugin-directory: ${{ steps.create-fake-metadata.outputs.fake_plugin_dir }}
 
